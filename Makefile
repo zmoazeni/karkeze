@@ -7,3 +7,6 @@ compile: ${BIN_DIR}
 
 ${BIN_DIR}:
 	mkdir -p ${BIN_DIR}
+
+install-deps:
+	cabal install json2 leveldb-haskell
