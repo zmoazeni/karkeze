@@ -24,7 +24,8 @@ main = do
     let DString valString = decode $ ToDString val in
       putStrLn valString
 
-  where 
+  where
+    encode :: Encodable -> ByteString
     encode (EString string) = E.encodeUtf8 $ T.pack string
     encode (EGram (Gram string)) = encode $ EString string
     encode (EJson (JNumber i)) = S.encode i
