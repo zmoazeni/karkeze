@@ -15,14 +15,14 @@ parseInvertedIndex :: String -> M.Map String [Integer]
 parseInvertedIndex = invertIdsAndGrams . idsAndGrams . idsAndText . toJson
 
 invertIdsAndGrams :: M.Map Integer [String] -> M.Map String [Integer]
-invertIdsAndGrams idGramMap = foldr mapGramsToIds M.empty $ M.toList idGramMap
+invertIdsAndGrams = foldr mapGramsToIds M.empty . M.toList
   where 
     mapGramsToIds (id, []) gramIdMap = gramIdMap
     mapGramsToIds (id, (gram:grams)) gramIdMap = M.insertWith uniqInsert gram [id] $ mapGramsToIds (id, grams) gramIdMap
     uniqInsert (newValue:newValues) oldValues = if newValue `elem` oldValues then oldValues else newValue:oldValues
 
 idsAndGrams :: M.Map Integer String -> M.Map Integer [String]
-idsAndGrams idGramMap = M.map toGrams idGramMap
+idsAndGrams = M.map toGrams
   where toGrams string = words $ map toLower string
 
 idsAndText :: [M.Map String Json] -> M.Map Integer String
@@ -32,7 +32,7 @@ idsAndText jsons = foldr mapIdToText M.empty jsons
         getText (Just (JString x)) = x
 
 toJson :: String -> [M.Map String Json]
-toJson rawJsons = (map processJson . lines) rawJsons
+toJson = map processJson . lines
   where processJson rawJson = case parseJson rawJson of
                                 Right (JObject x)  -> x
                                 Left _             -> M.empty
