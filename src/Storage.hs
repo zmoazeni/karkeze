@@ -7,7 +7,6 @@ module Storage (
 import Parser
 import Data.JSON2 (Json(..))
 import Data.Map (toList)
-import Data.List (unlines)
 import Database.LevelDB
 import Data.Text (pack, unpack)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
@@ -51,7 +50,7 @@ readGram gram = do
     value <- get db [] (encode $ EGram gram)
     case value of
       Just x  -> let DJsons jsons = decode (ToDJsons x)
-                     xs = map (\(JNumber x) -> truncate(x)) jsons
+                     xs = map (\(JNumber i) -> truncate(i) :: Integer) jsons
                  in print xs
       Nothing -> let Gram rawGram = gram in putStrLn $ "gram: [" ++ rawGram ++ "] not found"
 
@@ -64,12 +63,13 @@ loadIndex = do
 
   where
     saveGrams db ((gram, jsons):xs) = put db [] (encode $ EGram gram) (encode $ EJsons jsons) >> saveGrams db xs
-    saveGrams db [] = return ()
+    saveGrams _ [] = return ()
 
 encode :: Encodable -> ByteString
 encode (EString string)      = encodeUtf8 $ pack string
 encode (EGram (Gram string)) = encode $ EString string
 encode (EJson (JNumber i))   = S.encode i
+encode (EJson _)             = error "unsupported JSON id"
 encode (EJsons jsons)        = S.encode $ map (\(JNumber i) -> i) jsons
 
 decode :: Decodable -> Decoded
