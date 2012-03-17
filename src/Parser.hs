@@ -27,8 +27,7 @@ invertIdsAndGrams = foldr mapGramsToIds empty . toList
 
 idsAndGrams :: Map Json String -> Map Json [Gram]
 idsAndGrams = M.map toGrams
-  where toGrams string = map grammify . words $ map toLower string
-        grammify x = Gram x
+  where toGrams string = map Gram . words $ map toLower string
 
 idsAndText :: [JsonObject] -> Map Json String
 idsAndText jsons = foldr mapIdToText empty jsons
