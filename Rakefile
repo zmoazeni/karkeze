@@ -17,8 +17,7 @@ file "bin/Main.o" => "src/Main.hs" do
 end
 
 task :clean do
-  sh "rm -rf #{output_files.join(" ")}"
-#  sh "rm -rf #{source_files.map {|source_file| source_file.sub(/\.hs/, '')}.join(" ")}"
+  sh "rm -rf ./bin Main"
 end
 
 task :install_deps do
