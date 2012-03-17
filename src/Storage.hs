@@ -33,7 +33,7 @@ printGrams = do
         [] -> putStrLn "No grams stored"
         xs -> putStrLn $ "grams: " ++ xs
   where 
-    toStrings keys = unwords . map (\(DGram (Gram string)) -> string) $ map (decode . ToDGram) keys
+    toStrings keys = unwords . map degrammify $ map (decode . ToDGram) keys
     getKeys iter keys = do
                           valid <- iterValid iter
                           case valid of
@@ -43,6 +43,8 @@ printGrams = do
                                       otherKeys <- getKeys iter keys
                                       return (key:otherKeys)
                             False -> return (keys)
+    degrammify (DGram (Gram string)) = string
+    degrammify _                    = error "Unknown gram"
 
 readGram :: Gram -> IO ()
 readGram gram = do
@@ -50,7 +52,7 @@ readGram gram = do
     value <- get db [] (encode $ EGram gram)
     case value of
       Just x  -> let DJsons jsons = decode (ToDJsons x)
-                     xs = map (\(JNumber i) -> truncate(i) :: Integer) jsons
+                     xs = map truncateJson jsons
                  in print xs
       Nothing -> let Gram rawGram = gram in putStrLn $ "gram: [" ++ rawGram ++ "] not found"
 
@@ -70,10 +72,18 @@ encode (EString string)      = encodeUtf8 $ pack string
 encode (EGram (Gram string)) = encode $ EString string
 encode (EJson (JNumber i))   = S.encode i
 encode (EJson _)             = error "unsupported JSON id"
-encode (EJsons jsons)        = S.encode $ map (\(JNumber i) -> i) jsons
+encode (EJsons jsons)        = S.encode $ map toNumber jsons
+
 
 decode :: Decodable -> Decoded
 decode (ToDString byteString) = DString . unpack $ decodeUtf8 byteString
 decode (ToDGram byteString)   = let DString string = decode $ ToDString byteString in DGram (Gram string)
 decode (ToDJson byteString)   = let Right x = S.decode byteString in DJson (JNumber x)
 decode (ToDJsons byteString)  = let Right xs = S.decode byteString in DJsons $ map (JNumber) xs
+
+toNumber :: Json -> Rational
+toNumber (JNumber i) = i
+toNumber _           = error "Unknown JSON id"
+
+truncateJson :: Json -> Integer
+truncateJson = truncate . toNumber
