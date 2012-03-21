@@ -1,3 +1,4 @@
 src/Main
+src/Test
 bin/*
 db/leveldb*
