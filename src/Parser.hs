@@ -41,8 +41,8 @@ instance Serialize Index where
           (bIndexId, bField) <- get
           let field = unpack $ decodeUtf8 bField
           case decode bIndexId of
-            Right indexId -> return (Index (JNumber indexId) field)
-            Left errorMessage -> error errorMessage
+               Right indexId -> return (Index (JNumber indexId) field)
+               Left errorMessage -> error errorMessage
 
 parseInvertedIndex :: String -> Map Gram [Index]
 parseInvertedIndex = splitGrams . textAndIndex . toJson
@@ -63,13 +63,13 @@ textAndIndex jsons = foldr combiner empty . concat $ map singletons jsons
         lowercase = map toLower
 
         getId json' = case M.lookup "id" json' of
-                       Just x  -> x
-                       Nothing -> error "We don't have an id"
+                           Just x  -> x
+                           Nothing -> error "We don't have an id"
 
 toJson :: RawJson -> [JsonMap]
 toJson = map processJson . lines
   where processJson rawJson = case parseJson rawJson of
-                                Right (JObject x)  -> x
-                                Right _            -> error "JSON is incorrect format"
-                                Left _             -> empty
+                                   Right (JObject x)  -> x
+                                   Right _            -> error "JSON is incorrect format"
+                                   Left _             -> empty
 

@@ -18,44 +18,42 @@ withDB :: (DB -> IO a) -> IO a
 withDB f = withLevelDB databasePath [CreateIfMissing, CacheSize 1024] f
 
 printGrams :: IO ()
-printGrams = do
-  withDB $ \db -> do
-    withIterator db [] $ \iter -> do
-      iterFirst iter
-      keys <- getKeys iter []
-      case toStrings keys of
-        [] -> putStrLn "No grams stored"
-        xs -> putStrLn $ "grams: " ++ xs
+printGrams = withDB $ \db -> 
+                             withIterator db [] $ \iter -> do
+                                                              iterFirst iter
+                                                              keys <- getKeys iter []
+                                                              case toStrings keys of
+                                                                   [] -> putStrLn "No grams stored"
+                                                                   xs -> putStrLn $ "grams: " ++ xs
   where 
     toStrings keys = unwords $ map (degrammify . decode) keys
     getKeys iter keys = do
-                          valid <- iterValid iter
-                          case valid of
-                            True -> do
-                                      key <- iterKey iter
-                                      iterNext iter
-                                      otherKeys <- getKeys iter keys
-                                      return (key:otherKeys)
-                            False -> return (keys)
+                           valid <- iterValid iter
+                           case valid of
+                                True -> do
+                                          key <- iterKey iter
+                                          iterNext iter
+                                          otherKeys <- getKeys iter keys
+                                          return (key:otherKeys)
+                                False -> return (keys)
 
     degrammify (Right (Gram string)) = string
     degrammify (Left errorMsg)       = error $ "trying to degrammify " ++ errorMsg
 
 readGram :: Gram -> IO ()
-readGram gram = do
-  withDB $ \db -> do
-    value <- get db [] (encode gram)
-    case value of
-      Just x  -> let Right indexes = decode x :: Either String [Index]
-                 in print indexes
-      Nothing -> let Gram rawGram = gram in putStrLn $ "gram: [" ++ rawGram ++ "] not found"
+readGram gram = withDB $ \db -> do
+                                   value <- get db [] (encode gram)
+                                   case value of
+                                     Just x  -> let Right indexes = decode x :: Either String [Index]
+                                                in print indexes
+                                     Nothing -> let Gram rawGram = gram in putStrLn $ "gram: [" ++ rawGram ++ "] not found"
 
 loadIndex :: IO ()
 loadIndex = do
-  rawJsons <- readFile "input.json"
-  destroy databasePath []
-  withDB $ \db -> saveGrams db . toList $ parseInvertedIndex rawJsons
-  putStrLn "input.json loaded"
+               rawJsons <- readFile "input.json"
+               destroy databasePath []
+               withDB $ \db -> saveGrams db . toList $ parseInvertedIndex rawJsons
+               putStrLn "input.json loaded"
 
 saveGrams :: (Serialize a, Serialize b) => DB -> [(a, b)] -> IO ()
 saveGrams db ((gram, indexes):xs) = put db [] (encode $ gram) (encode $ indexes) >> saveGrams db xs
