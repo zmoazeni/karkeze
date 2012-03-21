@@ -14,6 +14,7 @@ import Data.List (nub)
 import Data.Serialize
 import Data.Text (pack, unpack)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
+import Data.ByteString (ByteString)
 
 type JsonMap    = Map String Json
 type IndexId    = Json
@@ -29,7 +30,7 @@ data Index = Index IndexId Field
 
 instance Serialize Gram where
   put (Gram gramValue) = put . encodeUtf8 $ pack gramValue
-  get = get >>= return . Gram . unpack . decodeUtf8
+  get = get >>= return . Gram . decodeString
 
 instance Serialize Index where
   put (Index indexId field) = let bType = encode $ indexType indexId
@@ -51,10 +52,11 @@ instance Serialize Index where
                               Right x -> error $ "Unknown IndexId type [" ++ show x ++ "]"
                               Left errorMsg -> error errorMsg
            return (Index indexId field)
-           where decodeString = unpack . decodeUtf8
-                 decodeNumber bIndexId = case decode bIndexId of
+           where decodeNumber bIndexId = case decode bIndexId of
                                               Right indexId -> indexId :: Rational
                                               Left errorMessage -> error errorMessage
+decodeString :: ByteString -> String
+decodeString = unpack . decodeUtf8
 
 indexType :: IndexId -> Integer
 indexType (JNumber _) = 0
