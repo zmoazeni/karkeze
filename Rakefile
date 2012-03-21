@@ -14,6 +14,10 @@ task :clean do
   sh "rm -rf ./bin ./src/Main"
 end
 
+task :cleandb do
+  sh "rm -rf ./db/leveldb*"
+end
+
 task :install_deps do
   sh "cabal install json2 leveldb-haskell"
 end
