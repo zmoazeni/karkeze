@@ -7,7 +7,7 @@ module Parser (
 
 import Data.Char
 import Data.JSON2 (Json(..))
-import Data.JSON2.Parser
+import Data.JSON2.Parser (parseJson)
 import Data.Map as M (Map, insertWith, empty, toList, unionWith, singleton)
 import qualified Data.Map as M (lookup)
 import Data.List (nub)
@@ -32,17 +32,34 @@ instance Serialize Gram where
   get = get >>= return . Gram . unpack . decodeUtf8
 
 instance Serialize Index where
-  put (Index indexId field) = let (JNumber i) = indexId
-                                  bIndexId = encode i
-                                  bField = encodeUtf8 $ pack field
-                              in put (bIndexId, bField)
+  put (Index indexId field) = let bType = encode $ indexType indexId
+                                  bIndexId = encodeJson indexId
+                                  bField = encodeString field
+                              in put (bType, bIndexId, bField)
+                              where encodeJson (JNumber i) = encode i
+                                    encodeJson (JString s) = encodeString s
+                                    encodeJson _           = error "Unknown id type"
+                                    encodeString = encodeUtf8 . pack
 
   get = do
-          (bIndexId, bField) <- get
-          let field = unpack $ decodeUtf8 bField
-          case decode bIndexId of
-               Right indexId -> return (Index (JNumber indexId) field)
-               Left errorMessage -> error errorMessage
+           (bIndexType, bIndexId, bField) <- get
+           let iType = decode bIndexType :: Either String Integer
+               field = decodeString bField
+               indexId = case iType of
+                              Right 0 -> JNumber $ decodeNumber bIndexId
+                              Right 1 -> JString $ decodeString bIndexId
+                              Right x -> error $ "Unknown IndexId type [" ++ show x ++ "]"
+                              Left errorMsg -> error errorMsg
+           return (Index indexId field)
+           where decodeString = unpack . decodeUtf8
+                 decodeNumber bIndexId = case decode bIndexId of
+                                              Right indexId -> indexId :: Rational
+                                              Left errorMessage -> error errorMessage
+
+indexType :: IndexId -> Integer
+indexType (JNumber _) = 0
+indexType (JString _) = 1
+indexType j = error $ "Unkown type for " ++ show j ++ "]"
 
 parseInvertedIndex :: String -> Map Gram [Index]
 parseInvertedIndex = splitGrams . textAndIndex . toJson
