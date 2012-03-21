@@ -1,45 +1,75 @@
 module Parser (
-  parseInvertedIndex,
-  toJson,
-  Gram (..)
+  parseInvertedIndex
+  , toJson
+  , Gram (..)
+  , Index (..)
 ) where
 
 import Data.Char
 import Data.JSON2 (Json(..))
 import Data.JSON2.Parser
-import Data.Map as M (Map, insert, insertWith, empty, toList)
-import qualified Data.Map as M (lookup, map)
+import Data.Map as M (Map, insertWith, empty, toList, unionWith, singleton)
+import qualified Data.Map as M (lookup)
+import Data.List (nub)
+import Data.Serialize
+import Data.Text (pack, unpack)
+import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 
-type JsonObject = Map String Json
+type JsonMap    = Map String Json
+type IndexId    = Json
+type Field      = String
+type FieldText  = String
+type RawJson    = String
+
 data Gram = Gram String
   deriving (Eq, Ord, Show)
 
-parseInvertedIndex :: String -> Map Gram [Json]
-parseInvertedIndex = invertIdsAndGrams . idsAndGrams . idsAndText . toJson
+data Index = Index IndexId Field
+  deriving (Eq, Show)
 
-invertIdsAndGrams :: Map Json [Gram] -> Map Gram [Json]
-invertIdsAndGrams = foldr mapGramsToIds empty . toList
-  where 
-    mapGramsToIds (_, []) gramIdMap = gramIdMap
-    mapGramsToIds (jsonId, (gram:grams)) gramIdMap = insertWith uniqInsert gram [jsonId] $ mapGramsToIds (jsonId, grams) gramIdMap
-    uniqInsert (newValue:_) oldValues = if newValue `elem` oldValues then oldValues else newValue:oldValues
-    uniqInsert [] _ = []
+instance Serialize Gram where
+  put (Gram gramValue) = put . encodeUtf8 $ pack gramValue
+  get = get >>= return . Gram . unpack . decodeUtf8
 
-idsAndGrams :: Map Json String -> Map Json [Gram]
-idsAndGrams = M.map toGrams
-  where toGrams string = map Gram . words $ map toLower string
+instance Serialize Index where
+  put (Index indexId field) = let (JNumber i) = indexId
+                                  bIndexId = encode i
+                                  bField = encodeUtf8 $ pack field
+                              in put (bIndexId, bField)
 
-idsAndText :: [JsonObject] -> Map Json String
-idsAndText jsons = foldr mapIdToText empty jsons
-  where mapIdToText json resultMap       = insert (getId $ M.lookup "id" json) (getText $ M.lookup "text" json) resultMap
-        getId (Just x)             = x
-        getId Nothing              = error "We don't have an id"
-        getText (Just (JString x)) = x
-        getText _                  = error "We don't have text"
+  get = do
+          (bIndexId, bField) <- get
+          let field = unpack $ decodeUtf8 bField
+          case decode bIndexId of
+            Right indexId -> return (Index (JNumber indexId) field)
+            Left errorMessage -> error errorMessage
 
-toJson :: String -> [JsonObject]
+parseInvertedIndex :: String -> Map Gram [Index]
+parseInvertedIndex = splitGrams . textAndIndex . toJson
+
+splitGrams :: Map FieldText [Index] -> Map Gram [Index]
+splitGrams = foldr gramsToIndicies empty . toList
+  where
+    gramsToIndicies (text, indicies) gramMap = foldr (insertGrams indicies) gramMap $ words text
+    insertGrams indicies rawGram gramMap = insertWith (\x y -> nub $ x ++ y) (Gram rawGram) indicies gramMap
+
+textAndIndex :: [JsonMap] -> Map FieldText [Index]
+textAndIndex jsons = foldr combiner empty . concat $ map singletons jsons
+  where
+        combiner kvPair textMap = unionWith (++) textMap kvPair
+        singletons json' = map (toSingleton (getId json')) $ [x | x <- toList json', let (key, _) = x, key /= "id"] 
+        toSingleton indexId (key, (JString value)) = singleton (lowercase value) [(Index indexId key)]
+        toSingleton _ _ = empty
+        lowercase = map toLower
+
+        getId json' = case M.lookup "id" json' of
+                       Just x  -> x
+                       Nothing -> error "We don't have an id"
+
+toJson :: RawJson -> [JsonMap]
 toJson = map processJson . lines
   where processJson rawJson = case parseJson rawJson of
                                 Right (JObject x)  -> x
                                 Right _            -> error "JSON is incorrect format"
                                 Left _             -> empty
+

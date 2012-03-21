@@ -10,7 +10,7 @@ main = do
     ("load":_)          -> loadIndex
     ("grams":_)         -> printGrams
     ("print":_)         -> parseAndPrint
-    _                   -> putStrLn "[load|print|read <gram>]"
+    _                   -> putStrLn "[load|print|grams|read <gram>]"
 
 parseAndPrint :: IO ()
 parseAndPrint = do
