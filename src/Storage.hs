@@ -56,5 +56,7 @@ loadIndex = do
                putStrLn "input.json loaded"
 
 saveGrams :: (Serialize a, Serialize b) => DB -> [(a, b)] -> IO ()
-saveGrams db ((gram, indexes):xs) = put db [] (encode $ gram) (encode $ indexes) >> saveGrams db xs
-saveGrams _ [] = return ()
+saveGrams db pairs = mapM_ put' pairs
+  where
+    put' (gram, indexes) = put db [] (encode gram) (encode indexes)
+
