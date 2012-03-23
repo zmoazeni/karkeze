@@ -1,27 +1,31 @@
-source_files = FileList["src/*.hs"]
-source_output_files = source_files.map {|source_file| [source_file, source_file.sub(/src\/(.*)\.hs/, 'bin/\1.o')] }
-output_files = source_output_files.map {|source_file, output_file| output_file }
-
+files = FileList["src/*.hs"]
 compile_cmd = "ghc -outputdir bin -isrc -Wall"
 
-source_output_files.each do |source_file, output_file|
-  file output_file => source_file do
-    sh "#{compile_cmd} #{source_file}"
+files.each do |f|
+  o_file = f.pathmap("%{^src/bin}X.o")
+  file o_file => f do
+    sh "#{compile_cmd} #{f}"
   end
 end
 
-task :clean do
-  sh "rm -rf ./bin ./src/Main"
-end
+file "bin/Main.o" => files.dup.exclude(/Main\.hs/).pathmap("%{^src/bin}X.o")
 
-task :cleandb do
-  sh "rm -rf ./db/leveldb*"
+task :compile => files.pathmap("%{^src/bin}X.o")
+task :default => :compile
+
+namespace :clean do
+  task :src do
+    sh "rm -rf ./bin #{files.pathmap("%X")}"
+  end
+
+  task :db do
+    sh "rm -rf ./db/leveldb*"
+  end
+
+  task :all => [:src, :db]
 end
+task :clean => "clean:src"
 
 task :install_deps do
   sh "cabal install json2 leveldb-haskell"
 end
-
-task :compile => output_files
-
-task :default => :compile
