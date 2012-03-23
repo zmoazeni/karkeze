@@ -3,6 +3,7 @@ module Parser (
   , toJson
   , Gram (..)
   , Index (..)
+  , decodeString
 ) where
 
 import Data.Char

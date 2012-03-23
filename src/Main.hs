@@ -1,6 +1,7 @@
 import System.Environment (getArgs)
 import Parser
 import Storage
+import Web
 
 main :: IO ()
 main = do
@@ -10,7 +11,8 @@ main = do
     ("load":_)          -> loadIndex
     ("grams":_)         -> printGrams
     ("print":_)         -> parseAndPrint
-    _                   -> putStrLn "[load|print|grams|read <gram>]"
+    ("web":_)           -> run
+    _                   -> putStrLn "[load|print|grams|read <gram>|web]"
 
 parseAndPrint :: IO ()
 parseAndPrint = do

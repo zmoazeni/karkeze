@@ -4,12 +4,15 @@ module Storage (
   ,withDB
   ,loadIndex
   ,saveGrams
+  ,grams
 ) where
 
 import Parser
 import Data.Map (toList)
 import Database.LevelDB
 import Data.Serialize (Serialize, encode, decode)
+import Data.Either
+import Data.ByteString (ByteString)
 
 databasePath :: FilePath
 databasePath = "./db/leveldbtest"
@@ -17,26 +20,35 @@ databasePath = "./db/leveldbtest"
 withDB :: (DB -> IO a) -> IO a
 withDB f = withLevelDB databasePath [CreateIfMissing, CacheSize 1024] f
 
+grams :: IO [Gram]
+grams = withDB $ \db ->
+  withIterator db [] $ \iter -> do
+    iterFirst iter
+    byteKeys <- getKeys iter []
+    let keys = rights $ map (decode :: ByteString -> Either String Gram) byteKeys
+    return keys
+
+getKeys :: Iterator -> [ByteString] -> IO [ByteString]
+getKeys iter keys = do
+  valid <- iterValid iter
+  case valid of
+      True -> do
+        key <- iterKey iter
+        iterNext iter
+        otherKeys <- getKeys iter keys
+        return (key:otherKeys)
+      False -> return (keys)
+
 printGrams :: IO ()
-printGrams = withDB $ \db -> 
-                             withIterator db [] $ \iter -> do
-                                                              iterFirst iter
-                                                              keys <- getKeys iter []
-                                                              case toStrings keys of
-                                                                   [] -> putStrLn "No grams stored"
-                                                                   xs -> putStrLn $ "grams: " ++ xs
+printGrams = withDB $ \db ->
+  withIterator db [] $ \iter -> do
+    iterFirst iter
+    keys <- getKeys iter []
+    case toStrings keys of
+         [] -> putStrLn "No grams stored"
+         xs -> putStrLn $ "grams: " ++ xs
   where 
     toStrings keys = unwords $ map (degrammify . decode) keys
-    getKeys iter keys = do
-                           valid <- iterValid iter
-                           case valid of
-                                True -> do
-                                          key <- iterKey iter
-                                          iterNext iter
-                                          otherKeys <- getKeys iter keys
-                                          return (key:otherKeys)
-                                False -> return (keys)
-
     degrammify (Right (Gram string)) = string
     degrammify (Left errorMsg)       = error $ "trying to degrammify " ++ errorMsg
 
