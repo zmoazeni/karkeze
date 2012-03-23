@@ -1,13 +1,13 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 module Parser (
   parseInvertedIndex
-  , toJson
   , Gram (..)
   , Index (..)
   , decodeString
 ) where
 
 import Data.Char
-import Data.JSON2 (Json(..))
+import Data.JSON2 (Json(..), ToJson, toJson)
 import Data.JSON2.Parser (parseJson)
 import Data.Map as M (Map, insertWith, empty, toList, unionWith, singleton)
 import qualified Data.Map as M (lookup)
@@ -16,6 +16,7 @@ import Data.Serialize
 import Data.Text (pack, unpack)
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import Data.ByteString (ByteString)
+import Data.Typeable
 
 type JsonMap    = Map String Json
 type IndexId    = Json
@@ -24,7 +25,7 @@ type FieldText  = String
 type RawJson    = String
 
 data Gram = Gram String
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Typeable)
 
 data Index = Index IndexId Field
   deriving (Eq, Show)
@@ -32,6 +33,9 @@ data Index = Index IndexId Field
 instance Serialize Gram where
   put (Gram gramValue) = put . encodeUtf8 $ pack gramValue
   get = get >>= return . Gram . decodeString
+
+instance ToJson Gram where
+  toJson (Gram gramValue) = toJson gramValue
 
 instance Serialize Index where
   put (Index indexId field) = let bType = encode $ indexType indexId
@@ -65,7 +69,7 @@ indexType (JString _) = 1
 indexType j = error $ "Unkown type for " ++ show j ++ "]"
 
 parseInvertedIndex :: String -> Map Gram [Index]
-parseInvertedIndex = splitGrams . textAndIndex . toJson
+parseInvertedIndex = splitGrams . textAndIndex . stringToJson
 
 splitGrams :: Map FieldText [Index] -> Map Gram [Index]
 splitGrams = foldr gramsToIndicies empty . toList
@@ -86,8 +90,8 @@ textAndIndex jsons = foldr combiner empty . concat $ map singletons jsons
                            Just x  -> x
                            Nothing -> error "We don't have an id"
 
-toJson :: RawJson -> [JsonMap]
-toJson = map processJson . lines
+stringToJson :: RawJson -> [JsonMap]
+stringToJson = map processJson . lines
   where processJson rawJson = case parseJson rawJson of
                                    Right (JObject x)  -> x
                                    Right _            -> error "JSON is incorrect format"
