@@ -10,18 +10,16 @@ import Data.Text.Lazy (pack)
 import Database.LevelDB (DB)
 
 run :: String -> DB -> IO ()
-run port db = scotty port' $ do
+run port db = scotty (read port) $ do
   get "/grams" $ do
     grams' <- fetchGrams
     text . pack . toString . toJson $ grams'
     header "Content-Type" "application/json"
-  where 
+
+  get "/hello" $ do
+    text "[{\"foo\":1}]"
+    header "Content-Type" "application/json"
+
+  where
     fetchGrams :: ActionM [Gram]
     fetchGrams = liftIO (grams db)
-
-    port' :: Int
-    port' = read port
-
- -- get "/hello" $ do
-   -- text "[{\"foo\":1}]"
-   -- header "Content-Type" "application/json"

@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 module CLI (
   printGrams
   ,readGram
@@ -24,7 +23,7 @@ printGrams db = withIterator db [] printKeys
   where
     printKeys iter = do
       iterFirst iter
-      keys' <- keys iter []
+      keys' <- keys iter
       case toStrings keys' of
            [] -> putStrLn "No grams stored"
            xs -> putStrLn $ "grams: " ++ xs
