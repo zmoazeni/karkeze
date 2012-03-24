@@ -10,22 +10,28 @@ end
 
 file "bin/Main.o" => files.dup.exclude(/Main\.hs/).pathmap("%{^src/bin}X.o")
 
+desc "Compile srcs"
 task :compile => files.pathmap("%{^src/bin}X.o")
 task :default => :compile
 
 namespace :clean do
+  desc "Clean the compiled objects"
   task :src do
     sh "rm -rf ./bin #{files.pathmap("%X")}"
   end
 
+  desc "Remove the databases in db/"
   task :db do
     sh "rm -rf ./db/leveldb*"
   end
 
+  desc "Clean both compiled objects and db"
   task :all => [:src, :db]
 end
+desc "Clean the compiled objects, same as clean:src"
 task :clean => "clean:src"
 
+desc "Install required dependencies"
 task :install_deps do
   sh "cabal install json2 leveldb-haskell"
 end
