@@ -7,16 +7,20 @@ import Storage
 import Parser
 import Control.Monad.Trans
 import Data.Text.Lazy (pack)
+import Database.LevelDB (DB)
 
-run :: IO ()
-run = scotty 3000 $ do
+run :: String -> DB -> IO ()
+run port db = scotty port' $ do
   get "/grams" $ do
-    g <- theGrams
-    text . pack . toString . toJson $ g
+    grams' <- fetchGrams
+    text . pack . toString . toJson $ grams'
     header "Content-Type" "application/json"
   where 
-    theGrams :: ActionM [Gram]
-    theGrams = liftIO grams
+    fetchGrams :: ActionM [Gram]
+    fetchGrams = liftIO (grams db)
+
+    port' :: Int
+    port' = read port
 
  -- get "/hello" $ do
    -- text "[{\"foo\":1}]"

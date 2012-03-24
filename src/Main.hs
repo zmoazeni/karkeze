@@ -11,8 +11,8 @@ main = do
     ("load":_)          -> loadIndex
     ("grams":_)         -> printGrams
     ("print":_)         -> parseAndPrint
-    ("web":_)           -> run
-    _                   -> putStrLn "[load|print|grams|read <gram>|web]"
+    ("web":port:_)      -> withDB $ \db -> run port db
+    _                   -> putStrLn "[load|print|grams|read <gram>|web <port>]"
 
 parseAndPrint :: IO ()
 parseAndPrint = do

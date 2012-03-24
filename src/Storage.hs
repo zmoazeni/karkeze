@@ -20,9 +20,8 @@ databasePath = "./db/leveldbtest"
 withDB :: (DB -> IO a) -> IO a
 withDB f = withLevelDB databasePath [CreateIfMissing, CacheSize 1024] f
 
-grams :: IO [Gram]
-grams = withDB $ \db ->
-  withIterator db [] $ \iter -> do
+grams :: DB -> IO [Gram]
+grams db = withIterator db [] $ \iter -> do
     iterFirst iter
     byteKeys <- getKeys iter []
     let keys = rights $ map (decode :: ByteString -> Either String Gram) byteKeys
