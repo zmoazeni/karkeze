@@ -2,7 +2,6 @@ module Storage (
   withDB
   ,keys
   ,grams
-  ,databasePath
 ) where
 
 import Parser
@@ -11,11 +10,8 @@ import Data.Serialize (decode)
 import Data.Either
 import Data.ByteString (ByteString)
 
-databasePath :: FilePath
-databasePath = "./db/leveldbtest"
-
-withDB :: (DB -> IO a) -> IO a
-withDB f = withLevelDB databasePath [CreateIfMissing, CacheSize 1024] f
+withDB :: FilePath -> (DB -> IO a) -> IO a
+withDB filePath f = withLevelDB filePath [CreateIfMissing, CacheSize 1024] f
 
 grams :: DB -> IO [Gram]
 grams db = withIterator db [] $ \iter -> do
