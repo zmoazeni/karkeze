@@ -23,7 +23,7 @@ printGrams db = withIterator db [] printKeys
   where
     printKeys iter = do
       iterFirst iter
-      keys' <- keys iter
+      keys' <- keys db
       case toStrings keys' of
            [] -> putStrLn "No grams stored"
            xs -> putStrLn $ "grams: " ++ xs

@@ -1,5 +1,6 @@
 module ConcurrencyTest (
   badConcurrency
+  ,separateKeys
 ) where
 
 import Data.Serialize hiding (put, get)
@@ -8,6 +9,7 @@ import Control.Monad
 import System.Posix
 import Database.LevelDB
 import Data.ByteString (ByteString)
+import Storage
 
 badConcurrency :: DB -> IO ()
 badConcurrency db = do
@@ -23,6 +25,7 @@ badConcurrency db = do
   a <- getArray
   print a
   print $ length a
+
   where printThread channel = do
                                 usleep 100
                                 threadId <- myThreadId
@@ -37,8 +40,25 @@ badConcurrency db = do
                       let Right array = d rawArr
                       return array
 
-        e :: Serialize a => a -> ByteString
-        e = encode
+separateKeys :: DB -> IO ()
+separateKeys db = do
+  let numberOfThreads = 521
+  channels <- replicateM numberOfThreads newChan
+  mapM_ (forkIO . printThread) channels
 
-        d :: Serialize a => ByteString -> Either String a 
-        d = decode
+  putStrLn "before"
+  mapM_ readChan channels
+  putStrLn "after"
+  keys db >>= print . length
+  where printThread channel = do
+                                usleep 100
+                                threadId <- myThreadId
+                                let sThreadId = show threadId
+                                put db [] (e sThreadId) (e (1::Int))
+                                writeChan channel "done"
+
+e :: Serialize a => a -> ByteString
+e = encode
+
+d :: Serialize a => ByteString -> Either String a 
+d = decode

@@ -9,19 +9,22 @@ import Database.LevelDB
 main :: IO ()
 main = do
   args <- getArgs
-  withDB (databasePath args) $ \db ->
+  let dbPath = databasePath args
+  withDB dbPath $ \db ->
     case args of
       ("read":rawGram:_)     -> readGram db (Gram rawGram)
       ("load":_)             -> loadIndex db "input.json"
       ("grams":_)            -> printGrams db
       ("rawGrams":_)         -> grams db >>= print
-      ("rawKeys":_)          -> withIterator db [] (\iter -> do { iterFirst iter; keys iter >>= print})
+      ("rawKeys":_)          -> keys db >>= print
       ("print":_)            -> parseAndPrint "input.json"
       ("web":port:_)         -> run port db
       ("example":_)          -> example db
       ("concurrencytest1":_) -> badConcurrency db
+      ("concurrencytest2":_) -> destroy dbPath [] >> separateKeys db
       _                      -> putStrLn "[load|print|grams|read <gram>|web <port>|example|concurrencytest1]"
 
 databasePath :: [String] -> FilePath
-databasePath ("concurrencytest":_) = "./db/db-concurrencytest"
-databasePath _                     = "./db/leveldbtest"
+databasePath ("concurrencytest1":_) = "./db/db-concurrencytest"
+databasePath ("concurrencytest2":_) = "./db/db-concurrencytest"
+databasePath _                     = "./db/db-leveldbtest"
