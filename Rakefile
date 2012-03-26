@@ -22,7 +22,7 @@ namespace :clean do
 
   desc "Remove the databases in db/"
   task :db do
-    sh "rm -rf ./db/leveldb*"
+    sh "rm -rf ./db/db-*"
   end
 
   desc "Clean both compiled objects and db"
