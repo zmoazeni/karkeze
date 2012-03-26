@@ -28,3 +28,7 @@ databasePath :: [String] -> FilePath
 databasePath ("concurrencytest1":_) = "./db/db-concurrencytest"
 databasePath ("concurrencytest2":_) = "./db/db-concurrencytest"
 databasePath _                     = "./db/db-leveldbtest"
+
+-- To get a current time sha2:
+-- import Data.Time.Clock.POSIX and Codec.Digest.SHA Data.Serialize
+-- getPOSIXTime >>= print . showBSasHex . hash SHA256 . encode . show
