@@ -22,7 +22,7 @@ main = do
       ("example":_)          -> example db
       ("concurrencytest1":_) -> badConcurrency db
       ("concurrencytest2":_) -> destroy dbPath [] >> separateKeys db
-      _                      -> putStrLn "[load|print|grams|read <gram>|web <port>|example|concurrencytest1]"
+      _                      -> putStrLn "[load|print|grams|read <gram>|web <port>|example|concurrencytest1|concurrencytest2]"
 
 databasePath :: [String] -> FilePath
 databasePath ("concurrencytest1":_) = "./db/db-concurrencytest"
