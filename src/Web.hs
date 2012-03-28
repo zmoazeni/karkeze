@@ -11,12 +11,8 @@ import Data.Text.Lazy (Text, pack)
 import Database.LevelDB (DB)
 import Control.Monad.IO.Class
 import Network.HTTP.Types
-import Network.Wai
-import "mtl" Control.Monad.Reader
-import Data.Conduit.Lazy (lazyConsume)
 import qualified Data.ByteString.Lazy.Char8 as BL
-import Control.Applicative
-import Control.Monad.Trans.Resource (ResourceT, runResourceT)
+import Data.JSON2.Parser
 
 type Param = (Text, Text)
 
@@ -29,13 +25,13 @@ run port (db, stageDB) = scotty (read port) $ do
 
   post "/" $ do
     b <- body
-    liftIO $ print b
+    liftIO . print . parseJson $ BL.unpack b
 
-    v <- param "foo2"
-    liftIO $ putStrLn v
+    v1 <- param "foo2"
+    liftIO $ putStrLn v1
 
-    v <- param "foo"
-    liftIO $ putStrLn v
+    v2 <- param "foo"
+    liftIO $ putStrLn v2
     status status201
 
   where
