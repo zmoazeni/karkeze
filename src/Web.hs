@@ -28,12 +28,8 @@ run port (db, stageDB) = scotty (read port) $ do
     header "Content-Type" "application/json"
 
   post "/" $ do
-    -- r <- getBody
-    -- liftIO . print $ getBody <$> ask
-    -- liftIO $ print r
-    r <- request
-    let b = BL.fromChunks <$> (lazyConsume . requestBody) r
-    liftIO . runResourceT $ printResource b
+    b <- body
+    liftIO $ print b
 
     v <- param "foo2"
     liftIO $ putStrLn v
@@ -45,17 +41,3 @@ run port (db, stageDB) = scotty (read port) $ do
   where
     fetchGrams :: ActionM [Gram]
     fetchGrams = liftIO (grams db)
-
-    printResource :: ResourceT IO BL.ByteString -> ResourceT IO BL.ByteString
-    printResource x = do
-      content <- x
-      liftIO $ print content
-      return content
-
-    -- getBody :: ActionEnv -> BL.ByteString
-    -- getBody _ _ b = b
-    -- getBody :: ActionM BL.ByteString
-    -- getBody =
-      -- do r <- request
-         -- body <- liftIO . runResourceT $ BL.fromChunks <$> (lazyConsume . requestBody) r
-         -- return body
