@@ -37,6 +37,9 @@ run port (db, stageDB) = scotty (read port) $ do
 
     v <- param "foo2"
     liftIO $ putStrLn v
+
+    v <- param "foo"
+    liftIO $ putStrLn v
     status status201
 
   where
@@ -46,7 +49,7 @@ run port (db, stageDB) = scotty (read port) $ do
     printResource :: ResourceT IO BL.ByteString -> ResourceT IO BL.ByteString
     printResource x = do
       content <- x
-      liftIO $ print $ BL.toChunks content
+      liftIO $ print content
       return content
 
     -- getBody :: ActionEnv -> BL.ByteString
