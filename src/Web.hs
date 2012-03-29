@@ -7,14 +7,10 @@ import Web.Scotty
 import Data.JSON2
 import Storage
 import Parser
-import Data.Text.Lazy (Text, pack)
+import Data.Text.Lazy (pack)
 import Database.LevelDB (DB)
 import Control.Monad.IO.Class
 import Network.HTTP.Types
-import qualified Data.ByteString.Lazy.Char8 as BL
-import Data.JSON2.Parser
-
-type Param = (Text, Text)
 
 run :: String -> (DB, DB) -> IO ()
 run port (db, stageDB) = scotty (read port) $ do
@@ -25,13 +21,7 @@ run port (db, stageDB) = scotty (read port) $ do
 
   post "/" $ do
     b <- body
-    liftIO . print . parseJson $ BL.unpack b
-
-    v1 <- param "foo2"
-    liftIO $ putStrLn v1
-
-    v2 <- param "foo"
-    liftIO $ putStrLn v2
+    liftIO $ saveAction stageDB IndexCreate b
     status status201
 
   where
