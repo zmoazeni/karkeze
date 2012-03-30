@@ -1,5 +1,5 @@
 files = FileList["src/*.hs"]
-compile_cmd = "ghc -outputdir bin -isrc -Wall"
+compile_cmd = "ghc -outputdir bin -isrc -Wall #{ENV['GHC_OPTS']}".strip
 
 files.each do |f|
   o_file = f.pathmap("%{^src/bin}X.o")
