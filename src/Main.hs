@@ -22,7 +22,7 @@ main = do
         ("print":_)            -> parseAndPrint "input.json"
         ("web":port:_)         -> do _ <- forkIO $ flush stageDB db
                                      run port (db, stageDB)
-        -- ("flush":_)            -> flushOnce stageDB db
+        ("flush":_)            -> flushOnce stageDB db
         ("example":_)          -> example db
         ("concurrencytest1":_) -> badConcurrency db
         ("concurrencytest2":_) -> destroy dbPath [] >> separateKeys db

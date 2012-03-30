@@ -2,9 +2,10 @@ module Storage (
   withDB
   ,keys
   ,grams
-  ,saveAction
+  ,queueAction
   ,IndexAction (..)
   ,flush
+  ,flushOnce
   ,saveGrams
 ) where
 
@@ -59,51 +60,38 @@ keys db = withIterator db [] doGetKeys
                                             return (key:otherKeys)
                                   False -> return xs
 
-saveAction :: DB -> IndexAction -> BL.ByteString -> IO ()
-saveAction db action contents = do uid <- genUID
-                                   put db [] uid (encode (action, contents))
-
-genUID :: IO ByteString
-genUID = do time <- getPOSIXTime
-            return . hash SHA256 . encode $ show time
-
 saveGrams :: (Serialize a, Serialize b) => DB -> [(a, b)] -> IO ()
 saveGrams db pairs = mapM_ put' pairs
   where
     put' (gram, indexes) = put db [] (encode gram) (encode indexes)
 
+queueAction :: DB -> IndexAction -> BL.ByteString -> IO ()
+queueAction db action contents = do uid <- genUID
+                                    put db [] uid (encode (action, contents))
+
+genUID :: IO ByteString
+genUID = do time <- getPOSIXTime
+            return . hash SHA256 . encode $ show time
+
+flushOnce :: DB -> DB -> IO ()
+flushOnce stageDB gramDB = withIterator stageDB [] flush'
+  where flush' = flushIterator stageDB gramDB
+
 flush :: DB -> DB -> IO ()
-flush stageDB gramDB = forever $ withIterator stageDB [] loop
-  where loop iter = iterFirst iter >> iterValid iter >>= flush' iter
-        saveGram = saveGrams gramDB . toList . parseInvertedIndex
-        flush' iter valid
+flush stageDB gramDB = forever $ flushOnce stageDB gramDB
+
+flushIterator :: DB -> DB -> Iterator -> IO ()
+flushIterator stageDB gramDB iter = iterFirst iter >> iterValid iter >>= flush'
+  where save = saveGrams gramDB . toList . parseInvertedIndex
+        flush' valid
           | valid     = do key   <- iterKey iter
                            value <- iterValue iter
                            case decode value of
-                             Right (IndexCreate, rawJson) -> saveGram rawJson
+                             Right (IndexCreate, rawJson) -> save rawJson
                              Left message                 -> error message
                              _                            -> error "Unknown action"
                            delete stageDB [] key
                            iterNext iter
-                           iterValid iter >>= flush' iter
+                           iterValid iter >>= flush'
           | otherwise = yield
 
-
-
--- flushOnce :: DB -> DB -> IO ()
--- flushOnce stageDB gramDB = withIterator stageDB [] $ \iter -> iterFirst iter >> flush' iter
-  -- where flush' iter =
-          -- do valid <- iterValid iter
-             -- case valid of
-               -- True -> do key <- iterKey iter
-                          -- value <- iterValue iter
-                          -- case decode value of
-                            -- Right (IndexCreate, rawJson) -> saveGram rawJson
-                            -- Left message                 -> error message
-                            -- _                            -> error "Unknown action"
-                          -- delete stageDB [] key
-                          -- iterNext iter
-                          -- flush' iter
-               -- False -> return ()
-
-        -- saveGram rawJson = print rawJson >> print (parseInvertedIndex rawJson) >> saveGrams gramDB (toList $ parseInvertedIndex rawJson)

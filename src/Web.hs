@@ -20,7 +20,7 @@ run port (gramDB, stageDB) = scotty (read port) $ do
 
   post "/" $ do
     b <- body
-    liftIO $ saveAction stageDB IndexCreate b
+    liftIO $ queueAction stageDB IndexCreate b
     status status201
 
   where
