@@ -4,6 +4,8 @@ module Storage (
   ,grams
   ,saveAction
   ,IndexAction (..)
+  ,flush
+  ,saveGrams
 ) where
 
 import Parser
@@ -17,6 +19,7 @@ import Data.Time.Clock.POSIX
 import Codec.Digest.SHA
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import Data.Text (pack, unpack)
+import Data.Map (toList)
 
 data IndexAction = IndexCreate
   deriving (Eq, Ord, Show)
@@ -59,3 +62,26 @@ saveAction db action contents = do uid <- genUID
 genUID :: IO ByteString
 genUID = do time <- getPOSIXTime
             return . hash SHA256 . encode $ show time
+
+saveGrams :: (Serialize a, Serialize b) => DB -> [(a, b)] -> IO ()
+saveGrams db pairs = mapM_ put' pairs
+  where
+    put' (gram, indexes) = put db [] (encode gram) (encode indexes)
+
+flush :: DB -> DB -> IO ()
+flush stageDB gramDB = withIterator stageDB [] $ \iter -> iterFirst iter >> flush' iter
+  where flush' iter =
+          do valid <- iterValid iter
+             case valid of
+               True -> do key <- iterKey iter
+                          value <- iterValue iter
+                          case decode value of
+                            Right (IndexCreate, rawJson) -> saveGram rawJson
+                            -- Right (_, _)                    -> error "Unknown action"
+                            Left message                    -> error message
+                          delete stageDB [] key
+                          iterNext iter
+                          flush' iter
+               False -> return ()
+
+        saveGram rawJson = print rawJson >> print (parseInvertedIndex rawJson) >> saveGrams gramDB (toList $ parseInvertedIndex rawJson)

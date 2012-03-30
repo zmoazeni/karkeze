@@ -8,7 +8,7 @@ module CLI (
 
 import Database.LevelDB
 import Storage
-import Data.Serialize (Serialize, encode, decode)
+import Data.Serialize (encode, decode)
 import Parser
 import Data.Map (toList)
 import Data.ByteString (ByteString)
@@ -53,10 +53,3 @@ loadIndex db filePath = do
   rawJsons <- readFile filePath
   saveGrams db (grams' rawJsons)
   where grams' = toList . parseInvertedIndex
-
-saveGrams :: (Serialize a, Serialize b) => DB -> [(a, b)] -> IO ()
-saveGrams db pairs = mapM_ put' pairs
-  where
-    put' (gram, indexes) = put db [] (encode gram) (encode indexes)
-
-

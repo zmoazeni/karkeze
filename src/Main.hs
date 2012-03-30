@@ -20,6 +20,7 @@ main = do
         ("rawKeys":_)          -> keys db >>= print
         ("print":_)            -> parseAndPrint "input.json"
         ("web":port:_)         -> run port (db, stageDB)
+        ("flush":_)            -> flush stageDB db
         ("example":_)          -> example db
         ("concurrencytest1":_) -> badConcurrency db
         ("concurrencytest2":_) -> destroy dbPath [] >> separateKeys db

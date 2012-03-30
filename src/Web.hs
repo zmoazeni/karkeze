@@ -13,7 +13,7 @@ import Control.Monad.IO.Class
 import Network.HTTP.Types
 
 run :: String -> (DB, DB) -> IO ()
-run port (db, stageDB) = scotty (read port) $ do
+run port (gramDB, stageDB) = scotty (read port) $ do
   get "/" $ do
     grams' <- fetchGrams
     text . pack . toString . toJson $ grams'
@@ -24,6 +24,10 @@ run port (db, stageDB) = scotty (read port) $ do
     liftIO $ saveAction stageDB IndexCreate b
     status status201
 
+  post "/flush" $ do
+    liftIO $ flush stageDB gramDB
+    status status200
+
   where
     fetchGrams :: ActionM [Gram]
-    fetchGrams = liftIO (grams db)
+    fetchGrams = liftIO (grams gramDB)
