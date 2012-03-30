@@ -33,7 +33,3 @@ databasePath _                     = "./db/db-leveldbtest"
 
 stageDBPath :: FilePath
 stageDBPath = "./db/db-stage"
-
--- To get a current time sha2:
--- import Data.Time.Clock.POSIX and Codec.Digest.SHA Data.Serialize
--- getPOSIXTime >>= print . showBSasHex . hash SHA256 . encode . show
