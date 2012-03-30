@@ -21,15 +21,17 @@ import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import Data.Text (pack, unpack)
 import Data.Map (toList)
 
-data IndexAction = IndexCreate
+data IndexAction = IndexCreate | IndexDelete
   deriving (Eq, Ord, Show)
 
 instance Serialize IndexAction where
   put IndexCreate = S.put . encodeUtf8 $ pack "create"
+  put _           = error "Unimplemented"
+
   get = do string <- S.get
            case unpack $ decodeUtf8 string of
              "create" -> return IndexCreate
-             e -> error $ "Unknown Index Action " ++ e
+             e        -> error $ "Unknown Index Action " ++ e
 
 withDB :: FilePath -> (DB -> IO a) -> IO a
 withDB filePath f = withLevelDB filePath [CreateIfMissing, CacheSize 1024] f
@@ -77,8 +79,8 @@ flush stageDB gramDB = withIterator stageDB [] $ \iter -> iterFirst iter >> flus
                           value <- iterValue iter
                           case decode value of
                             Right (IndexCreate, rawJson) -> saveGram rawJson
-                            -- Right (_, _)                    -> error "Unknown action"
-                            Left message                    -> error message
+                            Left message                 -> error message
+                            _                            -> error "Unknown action"
                           delete stageDB [] key
                           iterNext iter
                           flush' iter
