@@ -5,6 +5,7 @@ import Web
 import CLI
 import ConcurrencyTest
 import Database.LevelDB
+import Control.Concurrent
 
 main :: IO ()
 main = do
@@ -19,8 +20,9 @@ main = do
         ("rawGrams":_)         -> grams db >>= print
         ("rawKeys":_)          -> keys db >>= print
         ("print":_)            -> parseAndPrint "input.json"
-        ("web":port:_)         -> run port (db, stageDB)
-        ("flush":_)            -> flush stageDB db
+        ("web":port:_)         -> do _ <- forkIO $ flush stageDB db
+                                     run port (db, stageDB)
+        -- ("flush":_)            -> flushOnce stageDB db
         ("example":_)          -> example db
         ("concurrencytest1":_) -> badConcurrency db
         ("concurrencytest2":_) -> destroy dbPath [] >> separateKeys db

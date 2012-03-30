@@ -23,10 +23,6 @@ run port (gramDB, stageDB) = scotty (read port) $ do
     liftIO $ saveAction stageDB IndexCreate b
     status status201
 
-  post "/flush" $ do
-    liftIO $ flush stageDB gramDB
-    status status200
-
   where
     fetchGrams :: ActionM [Gram]
     fetchGrams = liftIO (grams gramDB)

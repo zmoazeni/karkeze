@@ -20,6 +20,8 @@ import Codec.Digest.SHA
 import Data.Text.Encoding (encodeUtf8, decodeUtf8)
 import Data.Text (pack, unpack)
 import Data.Map (toList)
+import Control.Monad
+import Control.Concurrent
 
 data IndexAction = IndexCreate | IndexDelete
   deriving (Eq, Ord, Show)
@@ -71,19 +73,37 @@ saveGrams db pairs = mapM_ put' pairs
     put' (gram, indexes) = put db [] (encode gram) (encode indexes)
 
 flush :: DB -> DB -> IO ()
-flush stageDB gramDB = withIterator stageDB [] $ \iter -> iterFirst iter >> flush' iter
-  where flush' iter =
-          do valid <- iterValid iter
-             case valid of
-               True -> do key <- iterKey iter
-                          value <- iterValue iter
-                          case decode value of
-                            Right (IndexCreate, rawJson) -> saveGram rawJson
-                            Left message                 -> error message
-                            _                            -> error "Unknown action"
-                          delete stageDB [] key
-                          iterNext iter
-                          flush' iter
-               False -> return ()
+flush stageDB gramDB = forever $ withIterator stageDB [] loop
+  where loop iter = iterFirst iter >> iterValid iter >>= flush' iter
+        saveGram = saveGrams gramDB . toList . parseInvertedIndex
+        flush' iter valid
+          | valid     = do key   <- iterKey iter
+                           value <- iterValue iter
+                           case decode value of
+                             Right (IndexCreate, rawJson) -> saveGram rawJson
+                             Left message                 -> error message
+                             _                            -> error "Unknown action"
+                           delete stageDB [] key
+                           iterNext iter
+                           iterValid iter >>= flush' iter
+          | otherwise = yield
 
-        saveGram rawJson = print rawJson >> print (parseInvertedIndex rawJson) >> saveGrams gramDB (toList $ parseInvertedIndex rawJson)
+
+
+-- flushOnce :: DB -> DB -> IO ()
+-- flushOnce stageDB gramDB = withIterator stageDB [] $ \iter -> iterFirst iter >> flush' iter
+  -- where flush' iter =
+          -- do valid <- iterValid iter
+             -- case valid of
+               -- True -> do key <- iterKey iter
+                          -- value <- iterValue iter
+                          -- case decode value of
+                            -- Right (IndexCreate, rawJson) -> saveGram rawJson
+                            -- Left message                 -> error message
+                            -- _                            -> error "Unknown action"
+                          -- delete stageDB [] key
+                          -- iterNext iter
+                          -- flush' iter
+               -- False -> return ()
+
+        -- saveGram rawJson = print rawJson >> print (parseInvertedIndex rawJson) >> saveGrams gramDB (toList $ parseInvertedIndex rawJson)
