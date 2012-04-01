@@ -7,6 +7,7 @@ module Storage (
   ,flush
   ,flushOnce
   ,saveGrams
+  ,search
 ) where
 
 import Parser
@@ -23,6 +24,9 @@ import Data.Text (pack, unpack)
 import Data.Map (toList)
 import Control.Monad
 import Control.Concurrent
+import Data.JSON2 (Json(..), toJson)
+import Data.Maybe
+import Data.List (nub)
 
 data IndexAction = IndexCreate | IndexDelete
   deriving (Eq, Ord, Show)
@@ -60,10 +64,16 @@ keys db = withIterator db [] doGetKeys
                                             return (key:otherKeys)
                                   False -> return xs
 
-saveGrams :: (Serialize a, Serialize b) => DB -> [(a, b)] -> IO ()
+saveGrams :: (Serialize a) => DB -> [(a, [Index])] -> IO ()
 saveGrams db pairs = mapM_ put' pairs
-  where
-    put' (gram, indexes) = put db [] (encode gram) (encode indexes)
+  where put' (gram, indexes) = do
+          maybeExisting <- get db [] (encode gram)
+          let existingIndexes = case maybeExisting of
+                                  Just binaryIndexes -> case decode binaryIndexes of
+                                                          Right indexes -> indexes
+                                                          Left _        -> []
+                                  Nothing -> []
+          put db [] (encode gram) (encode $ indexes ++ existingIndexes)
 
 queueAction :: DB -> IndexAction -> BL.ByteString -> IO ()
 queueAction db action contents = do uid <- genUID
@@ -94,4 +104,13 @@ flushIterator stageDB gramDB iter = iterFirst iter >> iterValid iter >>= flush'
                            iterNext iter
                            iterValid iter >>= flush'
           | otherwise = yield
+
+search :: DB -> Gram -> IO Json
+search db gram = do
+  maybeValue <- get db [] (encode gram)
+  case maybeValue of
+    Just binaryIndexes -> case decode binaryIndexes of
+                            Right indexes -> return . toJson . nub $ map indexId indexes
+                            Left msg      -> error msg
+    Nothing            -> return $ JArray []
 

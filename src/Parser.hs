@@ -27,7 +27,7 @@ type RawJson    = String
 data Gram = Gram String
   deriving (Eq, Ord, Show, Typeable)
 
-data Index = Index IndexId Field
+data Index = Index { indexId :: IndexId, field :: Field }
   deriving (Eq, Show)
 
 instance Serialize Gram where
