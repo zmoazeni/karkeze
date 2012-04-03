@@ -27,7 +27,7 @@ type RawJson    = String
 data Gram = Gram String
   deriving (Eq, Ord, Show, Typeable)
 
-data Index = Index { indexId :: IndexId, field :: Field }
+data Index = Index { indexId :: IndexId, indexField :: Field }
   deriving (Eq, Show)
 
 instance Serialize Gram where
@@ -38,27 +38,29 @@ instance ToJson Gram where
   toJson (Gram gramValue) = toJson gramValue
 
 instance Serialize Index where
-  put (Index indexId field) = let bType = encode $ indexType indexId
-                                  bIndexId = encodeJson indexId
-                                  bField = encodeString field
-                              in put (bType, bIndexId, bField)
-                              where encodeJson (JNumber i) = encode i
-                                    encodeJson (JString s) = encodeString s
-                                    encodeJson _           = error "Unknown id type"
-                                    encodeString = encodeUtf8 . pack
+  put index = let field = indexField index
+                  id' = indexId index
+                  bType = encode $ indexType id'
+                  bIndexId = encodeJson id'
+                  bField = encodeString field
+              in put (bType, bIndexId, bField)
+              where encodeJson (JNumber i) = encode i
+                    encodeJson (JString s) = encodeString s
+                    encodeJson _           = error "Unknown id type"
+                    encodeString = encodeUtf8 . pack
 
   get = do
            (bIndexType, bIndexId, bField) <- get
            let iType = decode bIndexType :: Either String Integer
                field = decodeString bField
-               indexId = case iType of
+               id' = case iType of
                               Right 0 -> JNumber $ decodeNumber bIndexId
                               Right 1 -> JString $ decodeString bIndexId
                               Right x -> error $ "Unknown IndexId type [" ++ show x ++ "]"
                               Left errorMsg -> error errorMsg
-           return (Index indexId field)
+           return (Index id' field)
            where decodeNumber bIndexId = case decode bIndexId of
-                                              Right indexId -> indexId :: Rational
+                                              Right id'         -> id' :: Rational
                                               Left errorMessage -> error errorMessage
 decodeString :: ByteString -> String
 decodeString = unpack . decodeUtf8
@@ -82,7 +84,7 @@ textAndIndex jsons = foldr combiner empty . concat $ map singletons jsons
   where
         combiner kvPair textMap = unionWith (++) textMap kvPair
         singletons json' = map (toSingleton (getId json')) $ [x | x <- toList json', let (key, _) = x, key /= "id"] 
-        toSingleton indexId (key, (JString value)) = singleton (lowercase value) [(Index indexId key)]
+        toSingleton id' (key, (JString value)) = singleton (lowercase value) [(Index id' key)]
         toSingleton _ _ = empty
         lowercase = map toLower
 
