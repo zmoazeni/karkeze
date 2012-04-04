@@ -12,33 +12,31 @@ module Storage (
 
 import Parser
 import Database.LevelDB
-import Data.Serialize (Serialize, encode, decode)
-import qualified Data.Serialize as S (put, get)
-import Data.Either
+import qualified Data.Binary as Bin
+import Data.Binary (Binary, Get, decode, encode)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as BL (ByteString)
+import Data.ByteString.Lazy.Char8 (unpack)
 import Data.Time.Clock.POSIX
 import Codec.Digest.SHA
-import Data.Text.Encoding (encodeUtf8, decodeUtf8)
-import Data.Text (pack, unpack)
 import Data.Map (toList)
 import Control.Monad
 import Control.Concurrent
 import Data.JSON2 (Json(..), toJson)
-import Data.Maybe
 import Data.List (nub)
+import Conversions
 
 data IndexAction = IndexCreate | IndexDelete
   deriving (Eq, Ord, Show)
 
-instance Serialize IndexAction where
-  put IndexCreate = S.put . encodeUtf8 $ pack "create"
+instance Binary IndexAction where
+  put IndexCreate = Bin.put (0 :: Int)
   put _           = error "Unimplemented"
 
-  get = do string <- S.get
-           case unpack $ decodeUtf8 string of
-             "create" -> return IndexCreate
-             e        -> error $ "Unknown Index Action " ++ e
+  get = do i <- Bin.get :: Get Int
+           case i of
+                0 -> return IndexCreate
+                e -> error $ "Unknown Index Action " ++ (show e)
 
 withDB :: FilePath -> (DB -> IO a) -> IO a
 withDB filePath f = withLevelDB filePath [CreateIfMissing, CacheSize 1024] f
@@ -47,8 +45,7 @@ grams :: DB -> IO [Gram]
 grams db = withIterator db [] $ \iter -> do
   iterFirst iter
   byteKeys <- keys db
-  let returnKeys = rights $ map (decode :: ByteString -> Either String Gram) byteKeys
-  return returnKeys
+  return $ map (decode . byteStringToLazy) byteKeys
 
 keys :: DB -> IO [ByteString]
 keys db = withIterator db [] doGetKeys
@@ -64,20 +61,20 @@ keys db = withIterator db [] doGetKeys
                                             return (key:otherKeys)
                                   False -> return xs
 
-saveGrams :: (Serialize a) => DB -> [(a, [Index])] -> IO ()
+saveGrams :: DB -> [(Gram, [Index])] -> IO ()
 saveGrams db pairs = mapM_ put' pairs
   where put' (gram, indexes) = do
-          maybeExisting <- get db [] (encode gram)
-          let existingIndexes = case maybeExisting of
-                                  Just binaryIndexes -> case decode binaryIndexes of
-                                                          Right indexes -> indexes
-                                                          Left _        -> []
-                                  Nothing -> []
-          put db [] (encode gram) (encode $ indexes ++ existingIndexes)
+          let key = encode' gram
+          maybeExisting <- get db [] key
+          let value = case maybeExisting of
+                           Just binaryIndexes -> encode' . (indexes ++) $ (decode' binaryIndexes :: [Index])
+                           Nothing -> encode' indexes
+          put db [] key value
 
 queueAction :: DB -> IndexAction -> BL.ByteString -> IO ()
-queueAction db action contents = do uid <- genUID
-                                    put db [] uid (encode (action, contents))
+queueAction db action contents = do let value = encode' (action, contents)
+                                    uid <- genUID
+                                    put db [] uid value
 
 genUID :: IO ByteString
 genUID = do time <- getPOSIXTime
@@ -96,10 +93,9 @@ flushIterator stageDB gramDB iter = iterFirst iter >> iterValid iter >>= flush'
         flush' valid
           | valid     = do key   <- iterKey iter
                            value <- iterValue iter
-                           case decode value of
-                             Right (IndexCreate, rawJson) -> save rawJson
-                             Left message                 -> error message
-                             _                            -> error "Unknown action"
+                           case decode' value :: (IndexAction, BL.ByteString) of
+                             (IndexCreate, rawJson) -> save $ unpack rawJson
+                             _                      -> error "Unknown action"
                            delete stageDB [] key
                            iterNext iter
                            iterValid iter >>= flush'
@@ -107,10 +103,9 @@ flushIterator stageDB gramDB iter = iterFirst iter >> iterValid iter >>= flush'
 
 search :: DB -> Gram -> IO Json
 search db gram = do
-  maybeValue <- get db [] (encode gram)
+  maybeValue <- get db [] (encode' gram)
   case maybeValue of
-    Just binaryIndexes -> case decode binaryIndexes of
-                            Right indexes -> return . toJson . nub $ map indexId indexes
-                            Left msg      -> error msg
+    Just binaryIndexes -> do let indexes = decode' binaryIndexes :: [Index]
+                             return . toJson . nub $ map indexId indexes
     Nothing            -> return $ JArray []
 

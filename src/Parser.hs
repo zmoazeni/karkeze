@@ -3,7 +3,6 @@ module Parser (
   parseInvertedIndex
   , Gram (..)
   , Index (..)
-  , decodeString
 ) where
 
 import Data.Char
@@ -12,11 +11,10 @@ import Data.JSON2.Parser (parseJson)
 import Data.Map as M (Map, insertWith, empty, toList, unionWith, singleton)
 import qualified Data.Map as M (lookup)
 import Data.List (nub)
-import Data.Serialize
-import Data.Text (pack, unpack)
-import Data.Text.Encoding (encodeUtf8, decodeUtf8)
-import Data.ByteString (ByteString)
+import Data.Binary
 import Data.Typeable
+import Control.Monad
+import Conversions
 
 type JsonMap    = Map String Json
 type IndexId    = Json
@@ -30,59 +28,46 @@ data Gram = Gram String
 data Index = Index { indexId :: IndexId, indexField :: Field }
   deriving (Eq, Show)
 
-instance Serialize Gram where
-  put (Gram gramValue) = put . encodeUtf8 $ pack gramValue
-  get = get >>= return . Gram . decodeString
+instance Binary Gram where
+  put (Gram gramValue) = put $ stringToByteString gramValue
+  get = get >>= return . Gram . byteStringToString
 
 instance ToJson Gram where
   toJson (Gram gramValue) = toJson gramValue
 
-instance Serialize Index where
-  put index = let field = indexField index
-                  id' = indexId index
-                  bType = encode $ indexType id'
-                  bIndexId = encodeJson id'
-                  bField = encodeString field
-              in put (bType, bIndexId, bField)
-              where encodeJson (JNumber i) = encode i
-                    encodeJson (JString s) = encodeString s
-                    encodeJson _           = error "Unknown id type"
-                    encodeString = encodeUtf8 . pack
+instance Binary Index where
+  put index = do let field = indexField index
+                     id' = indexId index
+                 put $ indexType id'
+                 case indexId index of
+                      JNumber i -> put i
+                      JString s -> put $ stringToByteString s
+                      _         -> error "Unknown id type"
+                 put $ stringToByteString field
+              where indexType :: Json -> Int
+                    indexType (JNumber _) = 0
+                    indexType (JString _) = 1
+                    indexType j = error $ "Unkown type for " ++ show j ++ "]"
 
-  get = do
-           (bIndexType, bIndexId, bField) <- get
-           let iType = decode bIndexType :: Either String Integer
-               field = decodeString bField
-               id' = case iType of
-                              Right 0 -> JNumber $ decodeNumber bIndexId
-                              Right 1 -> JString $ decodeString bIndexId
-                              Right x -> error $ "Unknown IndexId type [" ++ show x ++ "]"
-                              Left errorMsg -> error errorMsg
+  get = do indexType <- get :: Get Int
+           id' <- case indexType of
+                       0 -> liftM JNumber get
+                       1 -> liftM (JString . byteStringToString) get
+                       _ -> error "Unknown type"
+           field <- liftM byteStringToString get
            return (Index id' field)
-           where decodeNumber bIndexId = case decode bIndexId of
-                                              Right id'         -> id' :: Rational
-                                              Left errorMessage -> error errorMessage
-decodeString :: ByteString -> String
-decodeString = unpack . decodeUtf8
-
-indexType :: IndexId -> Integer
-indexType (JNumber _) = 0
-indexType (JString _) = 1
-indexType j = error $ "Unkown type for " ++ show j ++ "]"
 
 parseInvertedIndex :: String -> Map Gram [Index]
 parseInvertedIndex = splitGrams . textAndIndex . stringToJson
 
 splitGrams :: Map FieldText [Index] -> Map Gram [Index]
 splitGrams = foldr gramsToIndicies empty . toList
-  where
-    gramsToIndicies (text, indicies) gramMap = foldr (insertGrams indicies) gramMap $ words text
-    insertGrams indicies rawGram gramMap = insertWith (\x y -> nub $ x ++ y) (Gram rawGram) indicies gramMap
+  where gramsToIndicies (text, indicies) gramMap = foldr (insertGrams indicies) gramMap $ words text
+        insertGrams indicies rawGram gramMap = insertWith (\x y -> nub $ x ++ y) (Gram rawGram) indicies gramMap
 
 textAndIndex :: [JsonMap] -> Map FieldText [Index]
 textAndIndex jsons = foldr combiner empty . concat $ map singletons jsons
-  where
-        combiner kvPair textMap = unionWith (++) textMap kvPair
+  where combiner kvPair textMap = unionWith (++) textMap kvPair
         singletons json' = map (toSingleton (getId json')) $ [x | x <- toList json', let (key, _) = x, key /= "id"] 
         toSingleton id' (key, (JString value)) = singleton (lowercase value) [(Index id' key)]
         toSingleton _ _ = empty
