@@ -3,27 +3,27 @@
 module Web where
 
 import Web.Scotty
-import Data.JSON2
 import Storage
 import Parser
-import Data.Text.Lazy (pack)
+import Data.Text.Lazy
+import Data.Text.Lazy.Encoding
 import Database.LevelDB (DB)
 import Control.Monad.IO.Class
 import Network.HTTP.Types
-import Data.ByteString.Char8 (unpack)
+import Data.Aeson
 
 run :: String -> (DB, DB) -> IO ()
 run port (gramDB, stageDB) = scotty (read port) $ do
   get "/grams" $ do
     grams' <- fetchGrams
-    text . pack . toString . toJson $ grams'
+    text . decodeUtf8 . encode . toJSON $ grams'
     header "Content-Type" "application/json"
 
   get "/search" $ do
     q <- param "q"
-    let gram = Gram (unpack q)
+    let gram = Gram (toStrict q)
     results <- liftIO $ search gramDB gram
-    text . pack . toString $ results
+    text . decodeUtf8 . encode $ results
     header "Content-Type" "application/json"
 
   post "/" $ do

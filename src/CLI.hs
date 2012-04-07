@@ -10,24 +10,27 @@ import Storage
 import Parser
 import Conversions
 import Database.LevelDB
-import Data.Map (toList)
+import Data.HashMap.Lazy (toList)
+import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
 
 parseAndPrint :: FilePath -> IO ()
 parseAndPrint filePath = do
   rawJsons <- readFile filePath
-  putStrLn . show $ parseInvertedIndex rawJsons
+  putStrLn . show . parseInvertedIndex $ TL.pack rawJsons
 
 printGrams :: DB -> IO ()
 printGrams db = withIterator db [] printKeys
   where printKeys iter = do
           iterFirst iter
           keys' <- keys db
-          case toStrings keys' of
-               [] -> putStrLn "No grams stored"
-               xs -> putStrLn $ "grams: " ++ xs
+          let textGrams = toText keys'
+          case T.null textGrams of
+               True  -> putStrLn "No grams stored"
+               False -> putStrLn $ "grams: " ++ (T.unpack textGrams)
 
-        toStrings = unwords . map (degrammify . decode')
-        degrammify (Gram string) = string
+        toText = T.unwords . map (degrammify . decode')
+        degrammify (Gram text) = text
 
 readGram :: DB -> Gram -> IO ()
 readGram db gram = do
@@ -35,7 +38,7 @@ readGram db gram = do
   case value of
     Just x  -> let indexes = decode' x :: [Index]
                in print indexes
-    Nothing -> let Gram rawGram = gram in putStrLn $ "gram: [" ++ rawGram ++ "] not found"
+    Nothing -> let Gram rawGram = gram in putStrLn $ "gram: [" ++ (T.unpack rawGram) ++ "] not found"
 
 example :: DB -> IO ()
 example db = do
@@ -48,4 +51,4 @@ loadIndex :: DB -> FilePath -> IO ()
 loadIndex db filePath = do
   rawJsons <- readFile filePath
   saveGrams db (toGrams rawJsons)
-  where toGrams = toList . parseInvertedIndex
+  where toGrams = toList . parseInvertedIndex . TL.pack

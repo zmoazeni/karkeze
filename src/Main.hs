@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 import System.Environment (getArgs)
 import Parser
 import Storage
@@ -6,6 +8,7 @@ import CLI
 import ConcurrencyTest
 import Database.LevelDB
 import Control.Concurrent
+import Data.Text
 
 main :: IO ()
 main = do
@@ -14,7 +17,7 @@ main = do
   withDB dbPath $ \db ->
     withDB stageDBPath $ \stageDB ->
       case args of
-        ("read":rawGram:_)     -> readGram db (Gram rawGram)
+        ("read":rawGram:_)     -> readGram db (Gram (pack rawGram))
         ("load":_)             -> loadIndex db "input.json"
         ("grams":_)            -> printGrams db
         ("rawGrams":_)         -> grams db >>= print

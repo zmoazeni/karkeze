@@ -11,20 +11,21 @@ module Storage (
 ) where
 
 import Parser
+import Conversions
 import Database.LevelDB
 import qualified Data.Binary as Bin
 import Data.Binary (Binary, Get, decode, encode)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as BL (ByteString)
-import Data.ByteString.Lazy.Char8 (unpack)
+import Data.Text.Lazy.Encoding (decodeUtf8)
 import Data.Time.Clock.POSIX
 import Codec.Digest.SHA
-import Data.Map (toList)
+import Data.HashMap.Lazy (toList)
 import Control.Monad
 import Control.Concurrent
-import Data.JSON2 (Json(..), toJson)
 import Data.List (nub)
-import Conversions
+import Data.Vector as V (empty, fromList)
+import qualified Data.Aeson as A
 
 data IndexAction = IndexCreate | IndexDelete
   deriving (Eq, Ord, Show)
@@ -94,18 +95,18 @@ flushIterator stageDB gramDB iter = iterFirst iter >> iterValid iter >>= flush'
           | valid     = do key   <- iterKey iter
                            value <- iterValue iter
                            case decode' value :: (IndexAction, BL.ByteString) of
-                             (IndexCreate, rawJson) -> save $ unpack rawJson
+                             (IndexCreate, rawJson) -> save $ decodeUtf8 rawJson
                              _                      -> error "Unknown action"
                            delete stageDB [] key
                            iterNext iter
                            iterValid iter >>= flush'
           | otherwise = yield
 
-search :: DB -> Gram -> IO Json
+search :: DB -> Gram -> IO A.Value
 search db gram = do
   maybeValue <- get db [] (encode' gram)
   case maybeValue of
     Just binaryIndexes -> do let indexes = decode' binaryIndexes :: [Index]
-                             return . toJson . nub $ map indexId indexes
-    Nothing            -> return $ JArray []
+                             return . A.Array . V.fromList . nub $ map indexId indexes
+    Nothing            -> return $ A.Array (empty)
 
