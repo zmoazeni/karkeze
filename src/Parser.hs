@@ -13,6 +13,7 @@ import Data.Aeson as A
 import Data.Attoparsec.Lazy
 import Data.HashMap.Lazy as HM (HashMap, insertWith, empty, toList, unionWith, singleton)
 import qualified Data.HashMap.Lazy as HM (lookup)
+import qualified Data.Vector as V
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import Data.Text.Lazy.Encoding
@@ -38,10 +39,10 @@ instance Hashable Gram where
   hashWithSalt salt (Gram gramValue) = hashWithSalt salt gramValue
 
 instance Binary Index where
-  put index = do put . A.encode $ indexId index
+  put index = do put . A.encode . V.fromList $ [indexId index]
                  put . TE.encodeUtf8 $ indexField index
 
-  get = do id' <- liftM (fromJust . A.decode) get
+  get = do id' <- liftM (V.head . fromJust . A.decode) get
            field <- liftM TE.decodeUtf8 get
            return (Index id' field)
 
