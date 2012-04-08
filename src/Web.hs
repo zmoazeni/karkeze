@@ -22,7 +22,7 @@ run port (gramDB, stageDB) = scotty (read port) $ do
 
   get "/search" $ do
     query <- param "q"
-    fields <- liftM toFields $ param "f" `rescue` (\_ -> return (pack ""))
+    fields <- liftM toFields $ param "f" `rescue` (\_ -> return "")
     results <- liftIO $ search gramDB query fields
     text . decodeUtf8 . encode $ results
     header "Content-Type" "application/json"
