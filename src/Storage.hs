@@ -17,6 +17,7 @@ import qualified Data.Binary as Bin
 import Data.Binary (Binary, Get, decode, encode)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as BL (ByteString)
+import Data.Text.Lazy hiding (map, empty, null)
 import Data.Text.Lazy.Encoding (decodeUtf8)
 import Data.Time.Clock.POSIX
 import Codec.Digest.SHA
@@ -102,11 +103,14 @@ flushIterator stageDB gramDB iter = iterFirst iter >> iterValid iter >>= flush'
                            iterValid iter >>= flush'
           | otherwise = yield
 
-search :: DB -> Gram -> IO A.Value
-search db gram = do
+search :: DB -> Text -> [Text] -> IO A.Value
+search db query fields = do
+  let gram = Gram (toStrict query)
   maybeValue <- get db [] (encode' gram)
   case maybeValue of
     Just binaryIndexes -> do let indexes = decode' binaryIndexes :: [Index]
-                             return . A.Array . V.fromList . nub $ map indexId indexes
+                                 filtered = [x | x <- indexes, indexField x `elem` (map toStrict fields)]
+                                 xs = if null fields then indexes else filtered
+                             return . A.Array . V.fromList . nub $ map indexId xs
     Nothing            -> return $ A.Array (empty)
 
