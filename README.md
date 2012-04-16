@@ -5,7 +5,8 @@ You'll need to install ghc and cabal, then install dependencies:
 	rake install_deps
 
 TODO:
-  * Limit search by field name
+  ✔ Limit search by field name
+  * Update and Delete actions
   * More advanced field querying (e.g. field=value) Maybe additional AND query1
   * Limit search by collection (gmail tag-like
   * Parse query string
