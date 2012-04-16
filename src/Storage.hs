@@ -4,6 +4,7 @@ module Storage (
   ,grams
   ,queueAction
   ,IndexAction (..)
+  ,Databases (..)
   ,flush
   ,flushOnce
   ,saveGrams
@@ -28,23 +29,28 @@ import Data.List (nub)
 import Data.Vector as V (empty, fromList)
 import qualified Data.Aeson as A
 
-data IndexAction = IndexCreate | IndexDelete
+data IndexAction = IndexCreate | IndexDelete | IndexUpdate
   deriving (Eq, Ord, Show)
+           
+data Databases = Databases {gramDB :: DB, stageDB :: DB, idDB :: DB}
 
 instance Binary IndexAction where
   put IndexCreate = Bin.put (0 :: Int)
+  put IndexDelete = Bin.put (1 :: Int)
   put _           = error "Unimplemented"
 
   get = do i <- Bin.get :: Get Int
            case i of
                 0 -> return IndexCreate
+                1 -> return IndexDelete
                 e -> error $ "Unknown Index Action " ++ (show e)
+                
 
 withDB :: FilePath -> (DB -> IO a) -> IO a
 withDB filePath f = withLevelDB filePath [CreateIfMissing, CacheSize 1024] f
 
-grams :: DB -> IO [Gram]
-grams db = withIterator db [] $ \iter -> do
+grams :: Databases -> IO [Gram]
+grams Databases {gramDB=db} = withIterator db [] $ \iter -> do
   iterFirst iter
   byteKeys <- keys db
   return $ map (decode . byteStringToLazy) byteKeys
@@ -82,23 +88,23 @@ genUID :: IO ByteString
 genUID = do time <- getPOSIXTime
             return . hash SHA256 . encode $ show time
 
-flushOnce :: DB -> DB -> IO ()
-flushOnce stageDB gramDB = withIterator stageDB [] flush'
-  where flush' = flushIterator stageDB gramDB
+flushOnce :: Databases -> IO ()
+flushOnce Databases {stageDB=stageDB', gramDB=gramDB'} = withIterator stageDB' [] flush'
+  where flush' = flushIterator stageDB' gramDB'
 
-flush :: DB -> DB -> IO ()
-flush stageDB gramDB = forever $ flushOnce stageDB gramDB
+flush :: Databases -> IO ()
+flush dbs = forever $ flushOnce dbs
 
 flushIterator :: DB -> DB -> Iterator -> IO ()
-flushIterator stageDB gramDB iter = iterFirst iter >> iterValid iter >>= flush'
-  where save = saveGrams gramDB . toList . parseInvertedIndex
+flushIterator stageDB' gramDB' iter = iterFirst iter >> iterValid iter >>= flush'
+  where save = saveGrams gramDB' . toList . parseInvertedIndex
         flush' valid
           | valid     = do key   <- iterKey iter
                            value <- iterValue iter
                            case decode' value :: (IndexAction, BL.ByteString) of
                              (IndexCreate, rawJson) -> save $ decodeUtf8 rawJson
                              _                      -> error "Unknown action"
-                           delete stageDB [] key
+                           delete stageDB' [] key
                            iterNext iter
                            iterValid iter >>= flush'
           | otherwise = yield
