@@ -22,10 +22,10 @@ import Data.Maybe
 import Data.Hashable
 
 data Gram = Gram T.Text
-  deriving (Eq, Ord, Show)
+          deriving (Eq, Ord, Show)
 
 data Index = Index { indexId :: Value, indexField :: T.Text }
-  deriving (Eq, Show)
+           deriving (Eq, Show)
 
 instance Binary Gram where
   put (Gram gramValue) = put $ TE.encodeUtf8 gramValue
