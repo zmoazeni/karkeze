@@ -19,7 +19,7 @@ import Data.ByteString (ByteString)
 parseAndPrint :: FilePath -> IO ()
 parseAndPrint filePath = do
   rawJsons <- readFile filePath
-  putStrLn . show . parseInvertedIndex $ TL.pack rawJsons
+  putStrLn . show . invertedIndex . parseIndex $ TL.pack rawJsons
   
 gramKeys :: Databases -> IO [ByteString]
 gramKeys Databases {gramDB=db} = keys db
@@ -56,4 +56,4 @@ loadIndex :: Databases -> FilePath -> IO ()
 loadIndex Databases {gramDB=db} filePath = do
   rawJsons <- readFile filePath
   saveGrams db (toGrams rawJsons)
-  where toGrams = toList . parseInvertedIndex . TL.pack
+  where toGrams = toList . invertedIndex . parseIndex . TL.pack

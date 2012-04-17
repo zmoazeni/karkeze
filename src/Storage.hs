@@ -28,10 +28,10 @@ import Control.Concurrent
 import Data.List (nub)
 import Data.Vector as V (empty, fromList)
 import qualified Data.Aeson as A
-
+  
 data IndexAction = IndexCreate | IndexDelete | IndexUpdate
-  deriving (Eq, Ord, Show)
-           
+                 deriving (Eq, Ord, Show)
+                          
 data Databases = Databases {gramDB :: DB, stageDB :: DB, idDB :: DB}
 
 instance Binary IndexAction where
@@ -41,9 +41,9 @@ instance Binary IndexAction where
 
   get = do i <- Bin.get :: Get Int
            case i of
-                0 -> return IndexCreate
-                1 -> return IndexDelete
-                e -> error $ "Unknown Index Action " ++ (show e)
+             0 -> return IndexCreate
+             1 -> return IndexDelete
+             e -> error $ "Unknown Index Action " ++ (show e)
                 
 
 withDB :: FilePath -> (DB -> IO a) -> IO a
@@ -97,7 +97,7 @@ flush dbs = forever $ flushOnce dbs
 
 flushIterator :: DB -> DB -> Iterator -> IO ()
 flushIterator stageDB' gramDB' iter = iterFirst iter >> iterValid iter >>= flush'
-  where save = saveGrams gramDB' . toList . parseInvertedIndex
+  where save = saveGrams gramDB' . toList . invertedIndex . parseIndex
         flush' valid
           | valid     = do key   <- iterKey iter
                            value <- iterValue iter

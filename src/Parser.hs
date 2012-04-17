@@ -1,9 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Parser (
-  parseInvertedIndex
+  parseIndex
   ,Gram (..)
   ,Index (..)
+  ,ParsedIndex (..)
+--  ,parseIds
 ) where
 
 import Data.List (nub)
@@ -11,8 +13,7 @@ import Data.Binary
 import Control.Monad
 import Data.Aeson as A
 import Data.Attoparsec.Lazy
-import Data.HashMap.Lazy as HM (HashMap, insertWith, empty, toList, unionWith, singleton)
-import qualified Data.HashMap.Lazy as HM (lookup)
+import Data.HashMap.Lazy as HM (HashMap, insertWith, empty, toList, unionWith, singleton, (!), keys)
 import qualified Data.Vector as V
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
@@ -26,6 +27,8 @@ data Gram = Gram T.Text
 
 data Index = Index { indexId :: Value, indexField :: T.Text }
            deriving (Eq, Show)
+
+data ParsedIndex = ParsedIndex { invertedIndex :: HashMap Gram [Index], idIndex :: (Value, [Gram])}
 
 instance Binary Gram where
   put (Gram gramValue) = put $ TE.encodeUtf8 gramValue
@@ -46,30 +49,31 @@ instance Binary Index where
            field <- liftM TE.decodeUtf8 get
            return (Index id' field)
 
-parseInvertedIndex :: TL.Text -> HashMap Gram [Index]
-parseInvertedIndex = splitGrams . textAndIndex . stringToJson
+parseIndex :: TL.Text -> ParsedIndex
+parseIndex text = ParsedIndex {invertedIndex=invertedIndex', idIndex=idIndex'}
+  where invertedIndex' = (splitGrams . textAndIndex . textToJson) text
+        idIndex' = (id', keys invertedIndex')
+        id' = indexId . head . snd . head $ toList invertedIndex'
+
+-- parseIds :: BL.ByteString -> [Value]
+-- parseIds = parse json
 
 splitGrams :: HashMap T.Text [Index] -> HashMap Gram [Index]
 splitGrams = foldr gramsToIndicies empty . toList
   where gramsToIndicies (text, indicies) gramMap = foldr (insertGrams indicies) gramMap $ T.words text
         insertGrams indicies rawGram gramMap = insertWith (\x y -> nub $ x ++ y) (Gram rawGram) indicies gramMap
 
-textAndIndex :: [Object] -> HashMap T.Text [Index]
-textAndIndex = foldr combiner empty . concat . map singletons
-  where singletons object' = map (toSingleton (getId object')) $ [x | x <- toList object', let (key, _) = x, key /= "id"]
+textAndIndex :: Object -> HashMap T.Text [Index]
+textAndIndex object' = foldr combine' empty $ singletons
+  where allExceptId = [x | x <- toList object', let (key, _) = x, key /= "id"]
+        singletons = map (toSingleton (object' ! "id")) allExceptId
         toSingleton id' (key, (String value)) = singleton (T.toLower value) [(Index id' key)]
         toSingleton _ _ = empty
-        combiner kvPair textMap = unionWith (++) textMap kvPair
+        combine' kvPair textMap = unionWith (++) textMap kvPair
 
-        getId object' = case HM.lookup "id" object' of
-                             Just x  -> x
-                             Nothing -> error "We don't have an id"
-
-stringToJson :: TL.Text -> [Object]
-stringToJson = map processJson . TL.lines
-  where processJson rawJsonText = let rawJson = encodeUtf8 rawJsonText
-                                  in case eitherResult $ parse json rawJson of
-                                          Right (Object x)  -> x
-                                          Left msg          -> error $ "error parsing: " ++ msg
-                                          _                 -> error $ "unexpected json"
+textToJson :: TL.Text -> Object
+textToJson raw = case (eitherResult . parse json . encodeUtf8) raw of
+  Right (Object x)  -> x
+  Left msg          -> error $ "error parsing: " ++ msg
+  _                 -> error $ "unexpected json"
 
