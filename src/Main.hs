@@ -31,7 +31,7 @@ withDatabases f = withDB gramDBPath $ \gramDB' ->
   withDB idDBPath $ \idDB' ->
   f $ Databases {gramDB=gramDB', stageDB=stageDB', idDB=idDB'}
      
-  where gramDBPath = "./db/db-leveldbtest"
+  where gramDBPath  = "./db/db-grams"
         stageDBPath = "./db/db-stage"
-        idDBPath = "./db/db-ids"
+        idDBPath    = "./db/db-ids"
   
