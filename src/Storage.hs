@@ -28,10 +28,10 @@ import Control.Concurrent
 import Data.List (nub)
 import Data.Vector as V (empty, fromList)
 import qualified Data.Aeson as A
-  
+
 data IndexAction = IndexCreate | IndexDelete | IndexUpdate
                  deriving (Eq, Ord, Show)
-                          
+
 data Databases = Databases {gramDB :: DB, stageDB :: DB, idDB :: DB}
 
 instance Binary IndexAction where
@@ -44,7 +44,7 @@ instance Binary IndexAction where
              0 -> return IndexCreate
              1 -> return IndexDelete
              e -> error $ "Unknown Index Action " ++ (show e)
-                
+
 
 withDB :: FilePath -> (DB -> IO a) -> IO a
 withDB filePath f = withLevelDB filePath [CreateIfMissing, CacheSize 1024] f
@@ -79,6 +79,9 @@ saveGrams db pairs = mapM_ put' pairs
                            Nothing -> encode' indexes
           put db [] key value
 
+saveId :: DB -> (A.Value, [Gram]) -> IO ()
+saveId db (id', grams') = put db [] (byteStringFromLazy $ A.encode id') (encode' grams')
+
 queueAction :: DB -> IndexAction -> BL.ByteString -> IO ()
 queueAction db action contents = do let value = encode' (action, contents)
                                     uid <- genUID
@@ -89,15 +92,18 @@ genUID = do time <- getPOSIXTime
             return . hash SHA256 . encode $ show time
 
 flushOnce :: Databases -> IO ()
-flushOnce Databases {stageDB=stageDB', gramDB=gramDB'} = withIterator stageDB' [] flush'
-  where flush' = flushIterator stageDB' gramDB'
+flushOnce dbs@Databases {stageDB=stageDB', gramDB=gramDB'} = withIterator stageDB' [] flush'
+  where flush' = flushIterator dbs
 
 flush :: Databases -> IO ()
 flush dbs = forever $ flushOnce dbs
 
-flushIterator :: DB -> DB -> Iterator -> IO ()
-flushIterator stageDB' gramDB' iter = iterFirst iter >> iterValid iter >>= flush'
-  where save = saveGrams gramDB' . toList . invertedIndex . parseIndex
+flushIterator :: Databases -> Iterator -> IO ()
+flushIterator Databases {stageDB=stageDB', gramDB=gramDB', idDB=idDB'} iter = iterFirst iter >> iterValid iter >>= flush'
+  where save raw = do let parsed = parseIndex raw
+                      saveGrams gramDB' . toList $ invertedIndex parsed
+                      saveId idDB' $ idIndex parsed
+
         flush' valid
           | valid     = do key   <- iterKey iter
                            value <- iterValue iter
