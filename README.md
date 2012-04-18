@@ -17,3 +17,4 @@ TODO:
   * Removing stop words
   * Stemming
   * Document parsing? e.g. accepting .pdf files
+  * Partial update? (PATCH)
