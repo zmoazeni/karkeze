@@ -30,6 +30,11 @@ run port dbs@(Databases {gramDB=gramDB', stageDB=stageDB'}) = scotty (read port)
     b <- body
     liftIO $ queueAction stageDB' IndexCreate b
     status status201
+    
+  delete "/" $ do
+    b <- body
+    liftIO $ queueAction stageDB' IndexDelete b
+    status status200
 
 fetchGrams :: Databases -> ActionM [Gram]
 fetchGrams dbs = liftIO (grams dbs)

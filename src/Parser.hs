@@ -5,7 +5,7 @@ module Parser (
   ,Gram (..)
   ,Index (..)
   ,ParsedIndex (..)
---  ,parseIds
+  ,parseIds
 ) where
 
 import Data.List (nub)
@@ -21,6 +21,7 @@ import Data.Text.Lazy.Encoding
 import qualified Data.Text.Encoding as TE
 import Data.Maybe
 import Data.Hashable
+import qualified Data.ByteString.Lazy as BL
 
 data Gram = Gram T.Text
           deriving (Eq, Ord, Show)
@@ -55,8 +56,8 @@ parseIndex text = ParsedIndex {invertedIndex=invertedIndex', idIndex=idIndex'}
         idIndex' = (id', keys invertedIndex')
         id' = indexId . head . snd . head $ toList invertedIndex'
 
--- parseIds :: BL.ByteString -> [Value]
--- parseIds = parse json
+parseIds :: BL.ByteString -> Value
+parseIds raw = fromJust . maybeResult $ parse json raw
 
 splitGrams :: HashMap T.Text [Index] -> HashMap Gram [Index]
 splitGrams = foldr gramsToIndicies empty . toList
