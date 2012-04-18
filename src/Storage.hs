@@ -23,7 +23,6 @@ import Data.Text.Lazy.Encoding (decodeUtf8)
 import Data.Time.Clock.POSIX
 import Codec.Digest.SHA
 import Data.HashMap.Lazy (toList)
-import Control.Monad
 import Control.Concurrent
 import Data.List (nub)
 import Data.Vector as V (empty, fromList)
@@ -114,10 +113,13 @@ flushOnce :: Databases -> IO ()
 flushOnce dbs@Databases {stageDB=stageDB'} = withIterator stageDB' [] flush'
   where flush' = flushIterator dbs
 
-flush :: Databases -> IO ()
-flush dbs = forever run
-  where run = do flushOnce dbs
-                 threadDelay 500000
+flush :: Databases -> MVar Bool -> IO ()
+flush dbs keepRunning = readMVar keepRunning >>= run
+  where run shouldRun 
+          | shouldRun = do flushOnce dbs
+                           threadDelay 500000
+                           flush dbs keepRunning
+          | otherwise = return ()
 
 flushIterator :: Databases -> Iterator -> IO ()
 flushIterator dbs@Databases{stageDB=stageDB', gramDB=gramDB', idDB=idDB'} iter = iterFirst iter >> iterValid iter >>= flush'
