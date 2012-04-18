@@ -111,11 +111,13 @@ genUID = do time <- getPOSIXTime
             return . hash SHA256 . encode $ show time
 
 flushOnce :: Databases -> IO ()
-flushOnce dbs@Databases {stageDB=stageDB', gramDB=gramDB'} = withIterator stageDB' [] flush'
+flushOnce dbs@Databases {stageDB=stageDB'} = withIterator stageDB' [] flush'
   where flush' = flushIterator dbs
 
 flush :: Databases -> IO ()
-flush dbs = forever $ flushOnce dbs
+flush dbs = forever run
+  where run = do flushOnce dbs
+                 threadDelay 500000
 
 flushIterator :: Databases -> Iterator -> IO ()
 flushIterator dbs@Databases{stageDB=stageDB', gramDB=gramDB', idDB=idDB'} iter = iterFirst iter >> iterValid iter >>= flush'
