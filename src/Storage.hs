@@ -37,15 +37,15 @@ data Databases = Databases {gramDB :: DB, stageDB :: DB, idDB :: DB}
 instance Binary IndexAction where
   put IndexCreate = Bin.put (0 :: Int)
   put IndexDelete = Bin.put (1 :: Int)
-  put _           = error "Unimplemented"
+  put IndexUpdate = Bin.put (2 :: Int)
 
   get = do i <- Bin.get :: Get Int
            case i of
              0 -> return IndexCreate
              1 -> return IndexDelete
+             2 -> return IndexUpdate
              e -> error $ "Unknown Index Action " ++ (show e)
-
-
+             
 withDB :: FilePath -> (DB -> IO a) -> IO a
 withDB filePath f = withLevelDB filePath [CreateIfMissing, CacheSize 1024] f
 
@@ -69,10 +69,8 @@ keys db = withIterator db [] doGetKeys
                                             return (key:otherKeys)
                                   False -> return xs
 
-deleteGrams :: Databases -> BL.ByteString -> IO ()
-deleteGrams Databases{idDB=idDB', gramDB=gramDB'} rawIds = do let A.Array v = parseIds rawIds
-                                                                  ids = V.toList v
-                                                              mapM_ deleteId ids
+deleteGramsForIds :: Databases -> [A.Value] -> IO ()
+deleteGramsForIds Databases{idDB=idDB', gramDB=gramDB'} ids = mapM_ deleteId ids
   where deleteId id' = do v <- get idDB' [] (byteStringFromLazy $ A.encode id')
                           case v of
                             Just x -> do let grams' = decode' x :: [Gram]
@@ -86,7 +84,8 @@ deleteGrams Databases{idDB=idDB', gramDB=gramDB'} rawIds = do let A.Array v = pa
                                                         filtered = filter (\i -> indexId i /= id') indexes
                                                     put gramDB' [] (encode' gram) (encode' filtered)
                                        _      -> return ()
-                              
+                                       
+                                       
 saveGrams :: DB -> [(Gram, [Index])] -> IO ()
 saveGrams db pairs = mapM_ put' pairs
   where put' (gram, indexes) = do
@@ -126,14 +125,25 @@ flushIterator dbs@Databases{stageDB=stageDB', gramDB=gramDB', idDB=idDB'} iter =
   where save raw = do let parsed = parseIndex raw
                       saveGrams gramDB' . toList $ invertedIndex parsed
                       saveId idDB' $ idIndex parsed
+                      
+        delete' rawIds = do let A.Array v = parseIds rawIds
+                                ids = V.toList v
+                            deleteGramsForIds dbs ids
+                        
+        update raw = do let parsed = parseIndex raw
+                            (id', _) = idIndex parsed
+                        deleteGramsForIds dbs [id']
+                        save raw
+                        
 
         flush' valid
           | valid     = do key   <- iterKey iter
                            value <- iterValue iter
                            case decode' value :: (IndexAction, BL.ByteString) of
                              (IndexCreate, rawJson) -> save $ decodeUtf8 rawJson
-                             (IndexDelete, rawJson) -> deleteGrams dbs rawJson
-                             _                      -> error "Unknown action"
+                             (IndexDelete, rawJson) -> delete' rawJson
+                             (IndexUpdate, rawJson) -> update $ decodeUtf8 rawJson
+
                            delete stageDB' [] key
                            iterNext iter
                            iterValid iter >>= flush'
