@@ -9,7 +9,7 @@ TODO:
   * ✔ Limit search by field name
   * ✔ Delete Action
   * ✔ Safer CTRL-c quiting with thread
-  * Update Action
+  * ✔ Update Action
   * More advanced field querying (e.g. field=value) Maybe additional AND query1
   * Limit search by collection (gmail tag-like
   * Parse query string
